@@ -1,1 +1,5 @@
 multirag
+.env
+multirag.ipynb
+.pytest_cache
+vector_data
