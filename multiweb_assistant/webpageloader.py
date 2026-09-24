@@ -4,8 +4,9 @@ from io import BytesIO
 from pypdf import PdfReader
 from langchain_core.documents import Document
 
+
 class WebPageLoader:
-    
+
     def __init__(self, urls):
         self.urls = urls
         self.headers = {
@@ -16,90 +17,114 @@ class WebPageLoader:
     # Download URL
     # -----------------------------
     def fetch(self, url):
-        response = requests.get(
-            url,
-            headers=self.headers,
-            timeout=20
-        )
+        try:
+            response = requests.get(
+                url,
+                headers=self.headers,
+                timeout=20
+            )
 
-        response.raise_for_status()
+            response.raise_for_status()
 
-        return response
+            return response
+
+        except requests.RequestException as e:
+            print(f"Error fetching URL {url}: {e}")
+            return None
+
+        except Exception as e:
+            print(f"Unexpected error while fetching {url}: {e}")
+            return None
 
     # -----------------------------
     # Extract HTML text
     # -----------------------------
     def clean_html(self, html):
 
-        soup = BeautifulSoup(html, "lxml")
+        try:
+            soup = BeautifulSoup(html, "lxml")
 
-        # Remove unwanted elements
-        for tag in soup([
-            "script",
-            "style",
-            "noscript",
-            "iframe",
-            "svg",
-            "canvas",
-            "nav",
-            "footer",
-            "header",
-            "aside",
-            "form"
-        ]):
-            tag.decompose()
+            # Remove unwanted elements
+            for tag in soup([
+                "script",
+                "style",
+                "noscript",
+                "iframe",
+                "svg",
+                "canvas",
+                "nav",
+                "footer",
+                "header",
+                "aside",
+                "form"
+            ]):
+                tag.decompose()
 
-        # Find main content
-        content = (
-            soup.find("main")
-            or soup.find("article")
-            or soup.find("div", class_="content")
-            or soup.body
-        )
+            # Find main content
+            content = (
+                soup.find("main")
+                or soup.find("article")
+                or soup.find("div", class_="content")
+                or soup.body
+            )
 
-        if not content:
+            if not content:
+                return ""
+
+            text = content.get_text(
+                separator="\n",
+                strip=True
+            )
+
+            return self.clean_text(text)
+
+        except Exception as e:
+            print(f"Error cleaning HTML content: {e}")
             return ""
-
-        text = content.get_text(
-            separator="\n",
-            strip=True
-        )
-
-        return self.clean_text(text)
 
     # -----------------------------
     # Extract PDF text
     # -----------------------------
     def clean_pdf(self, pdf_data):
 
-        reader = PdfReader(BytesIO(pdf_data))
+        try:
+            reader = PdfReader(BytesIO(pdf_data))
 
-        pages = []
+            pages = []
 
-        for page in reader.pages:
+            for page in reader.pages:
 
-            text = page.extract_text()
+                text = page.extract_text()
 
-            if text:
-                pages.append(text)
+                if text:
+                    pages.append(text)
 
-        return self.clean_text("\n".join(pages))
+            return self.clean_text("\n".join(pages))
+
+        except Exception as e:
+            print(f"Error extracting PDF text: {e}")
+            return ""
 
     # -----------------------------
     # Clean extracted text
     # -----------------------------
     def clean_text(self, text):
 
-        lines = []
+        try:
+            lines = []
 
-        for line in text.splitlines():
+            for line in text.splitlines():
 
-            line = " ".join(line.split())
+                line = " ".join(line.split())
 
-            if line:
-                lines.append(line)
+                if line:
+                    lines.append(line)
 
-        return "\n".join(lines)
+            return "\n".join(lines)
+
+        except Exception as e:
+            print(f"Error cleaning text: {e}")
+            return ""
 
     # -----------------------------
     # Load all URLs
@@ -108,66 +133,79 @@ class WebPageLoader:
 
         documents = []
 
-        for url in self.urls:
+        try:
 
-            try:
+            for url in self.urls:
 
-                response = self.fetch(url)
+                try:
 
-                # Detect file type
-                content_type = response.headers.get(
-                    "Content-Type",
-                    ""
-                ).lower()
+                    response = self.fetch(url)
 
-                # -----------------------------
-                # PDF
-                # -----------------------------
-                if (
-                    "application/pdf" in content_type
-                    or url.lower().endswith(".pdf")
-                ):
+                    if response is None:
+                        continue
 
-                    text = self.clean_pdf(response.content)
+                    # Detect file type
+                    content_type = response.headers.get(
+                        "Content-Type",
+                        ""
+                    ).lower()
 
-                    document_type = "pdf"
+                    # -----------------------------
+                    # PDF
+                    # -----------------------------
+                    if (
+                        "application/pdf" in content_type
+                        or url.lower().endswith(".pdf")
+                    ):
 
-                # -----------------------------
-                # HTML webpage
-                # -----------------------------
-                else:
-
-                    text = self.clean_html(response.text)
-
-                    document_type = "webpage"
-
-                # -----------------------------
-                # Create LangChain Document
-                # -----------------------------
-                if text:
-
-                    documents.append(
-                        Document(
-                            page_content=text,
-                            metadata={
-                                "source": url,
-                                "type": document_type
-                            }
+                        text = self.clean_pdf(
+                            response.content
                         )
-                    )
 
-                    print(f"Loaded: {url}")
+                        document_type = "pdf"
 
-                else:
+                    # -----------------------------
+                    # HTML webpage
+                    # -----------------------------
+                    else:
 
-                    print(f"No text found: {url}")
+                        text = self.clean_html(
+                            response.text
+                        )
 
-            except requests.RequestException as e:
+                        document_type = "webpage"
 
-                print(f"Failed to load {url}: {e}")
+                    # -----------------------------
+                    # Create LangChain Document
+                    # -----------------------------
+                    if text:
 
-            except Exception as e:
+                        documents.append(
+                            Document(
+                                page_content=text,
+                                metadata={
+                                    "source": url,
+                                    "type": document_type
+                                }
+                            )
+                        )
 
-                print(f"Error processing {url}: {e}")
+                        print(f"Loaded: {url}")
+
+                    else:
+
+                        print(f"No text found: {url}")
+
+                except requests.RequestException as e:
+
+                    print(f"Failed to load {url}: {e}")
+
+                except Exception as e:
+
+                    print(f"Error processing {url}: {e}")
+
+        except Exception as e:
+
+            print(f"Error loading URLs: {e}")
 
         return documents

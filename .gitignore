@@ -3,3 +3,5 @@ multirag
 multirag.ipynb
 .pytest_cache
 vector_data
+__pycache__
+multiweb_assistent/__pycache__
