@@ -9,6 +9,7 @@ load_dotenv()
 hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # Data Source
+## Remove all the bellow Urls and add your urls in the bellow list
 urls = [
     "https://jitupradhan.pythonanywhere.com/",
     "https://jitupradhan.pythonanywhere.com/domain/1/",
